@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>Snake</title>
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png" />
+<link rel="icon" type="image/png" sizes="512x512" href="icon-512.png" />
+<link rel="apple-touch-icon" href="apple-touch-icon.png" />
+<link rel="manifest" href="manifest.json" />
+<meta name="theme-color" content="#0b1220" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="Snake" />
+<style>
+  :root{
+    --bg:#0b1220;
+    --panel:#111a2e;
+    --line:#1e2a45;
+    --ink:#eef2f7;
+    --soft:#8b98b0;
+    --green:#4ade80;
+    --green-deep:#22c55e;
+    --red:#fb7185;
+  }
+  *{ box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html,body{
+    margin:0; padding:0; min-height:100%;
+    background:var(--bg); color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    -webkit-font-smoothing:antialiased;
+    overscroll-behavior:none;
+  }
+  body{ display:flex; justify-content:center; touch-action:manipulation; }
+  .app{
+    width:100%; max-width:460px; min-height:100vh; min-height:100dvh;
+    display:flex; flex-direction:column; align-items:center;
+    padding:calc(20px + env(safe-area-inset-top)) 16px calc(20px + env(safe-area-inset-bottom));
+  }
+  header{ width:100%; display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; }
+  .brand{ display:flex; align-items:center; gap:10px; }
+  .brand img{ width:34px; height:34px; border-radius:9px; display:block; }
+  .brand-name{ font-size:20px; font-weight:700; letter-spacing:-0.01em; }
+  .scores{ display:flex; gap:8px; }
+  .score-box{
+    background:var(--panel); border:1px solid var(--line); border-radius:12px;
+    padding:6px 12px; text-align:center; min-width:64px;
+  }
+  .score-box .lbl{ font-size:10px; color:var(--soft); text-transform:uppercase; letter-spacing:.08em; }
+  .score-box .val{ font-size:18px; font-weight:700; color:var(--green); font-variant-numeric:tabular-nums; }
+  .board-wrap{ position:relative; width:100%; }
+  canvas{
+    display:block; width:100%; aspect-ratio:1/1;
+    background:var(--panel); border:1px solid var(--line); border-radius:18px;
+    touch-action:none;
+  }
+  .overlay{
+    position:absolute; inset:0; border-radius:18px;
+    display:flex; flex-direction:column; align-items:center; justify-content:center; gap:10px;
+    background:rgba(11,18,32,.82); backdrop-filter:blur(3px);
+    text-align:center; padding:24px;
+  }
+  .overlay[hidden]{ display:none; }
+  .overlay h2{ margin:0; font-size:26px; letter-spacing:-0.01em; }
+  .overlay p{ margin:0; color:var(--soft); font-size:14px; line-height:1.5; }
+  .overlay .final{ font-size:15px; color:var(--ink); }
+  .overlay .final b{ color:var(--green); font-size:22px; }
+  .btn{
+    border:none; cursor:pointer; font-size:16px; font-weight:700;
+    background:var(--green); color:#06281a;
+    padding:13px 34px; border-radius:14px; margin-top:6px;
+  }
+  .btn:active{ transform:scale(.97); }
+  .hint{ margin-top:14px; color:var(--soft); font-size:13px; text-align:center; line-height:1.6; }
+  .hint kbd{
+    background:var(--panel); border:1px solid var(--line); border-radius:6px;
+    padding:1px 7px; font-size:12px; font-family:inherit;
+  }
+  footer{ margin-top:auto; padding-top:22px; }
+  footer p{ margin:0; font-size:12.5px; color:var(--soft); }
+  footer span{ color:var(--red); }
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div class="brand">
+      <img src="icon-192.png" alt="" width="34" height="34">
+      <span class="brand-name">Snake</span>
+    </div>
+    <div class="scores">
+      <div class="score-box"><div class="lbl">Score</div><div class="val" id="score">0</div></div>
+      <div class="score-box"><div class="lbl">Best</div><div class="val" id="best">0</div></div>
+    </div>
+  </header>
+
+  <div class="board-wrap">
+    <canvas id="board" width="440" height="440" aria-label="Snake game board"></canvas>
+    <div class="overlay" id="startOverlay">
+      <h2>Ready?</h2>
+      <p>Swipe on the board or use arrow keys.<br>Eat the dots, don't hit the walls.</p>
+      <button class="btn" id="startBtn">Play</button>
+    </div>
+    <div class="overlay" id="overOverlay" hidden>
+      <h2>Game over</h2>
+      <p class="final">Score <b id="finalScore">0</b></p>
+      <p id="newBest" hidden>New best! 🏆</p>
+      <button class="btn" id="againBtn">Play again</button>
+    </div>
+    <div class="overlay" id="pauseOverlay" hidden>
+      <h2>Paused</h2>
+      <button class="btn" id="resumeBtn">Resume</button>
+    </div>
+  </div>
+
+  <div class="hint">
+    <kbd>↑</kbd><kbd>↓</kbd><kbd>←</kbd><kbd>→</kbd> or swipe &nbsp;·&nbsp; <kbd>Space</kbd> to pause
+  </div>
+
+  <footer><p>Made with <span>❤️</span> by sauravhhh</p></footer>
+</div>
+
+<script>
+(function(){
+  "use strict";
+  const COLS = 20, ROWS = 20;
+  const canvas = document.getElementById('board');
+  const ctx = canvas.getContext('2d');
+  const scoreEl = document.getElementById('score');
+  const bestEl = document.getElementById('best');
+  const finalScoreEl = document.getElementById('finalScore');
+  const newBestEl = document.getElementById('newBest');
+  const startOverlay = document.getElementById('startOverlay');
+  const overOverlay = document.getElementById('overOverlay');
+  const pauseOverlay = document.getElementById('pauseOverlay');
+
+  const CELL = canvas.width / COLS;
+  const BEST_KEY = 'snake-best';
+
+  let snake, dir, nextDir, food, score, best, speed, lastTick, rafId, running, paused, dead;
+
+  best = parseInt(localStorage.getItem(BEST_KEY) || '0', 10) || 0;
+  bestEl.textContent = best;
+
+  function reset(){
+    const cy = Math.floor(ROWS / 2);
+    snake = [{x:6,y:cy},{x:5,y:cy},{x:4,y:cy},{x:3,y:cy}];
+    dir = {x:1,y:0};
+    nextDir = {x:1,y:0};
+    score = 0;
+    speed = 7;              // moves per second
+    dead = false;
+    paused = false;
+    scoreEl.textContent = '0';
+    placeFood();
+    lastTick = performance.now();
+  }
+
+  function placeFood(){
+    while (true){
+      const f = { x: (Math.random()*COLS)|0, y: (Math.random()*ROWS)|0 };
+      if (!snake.some(s => s.x === f.x && s.y === f.y)){ food = f; return; }
+    }
+  }
+
+  function step(){
+    dir = nextDir;
+    const head = { x: snake[0].x + dir.x, y: snake[0].y + dir.y };
+
+    // wall collision
+    if (head.x < 0 || head.y < 0 || head.x >= COLS || head.y >= ROWS) return gameOver();
+    // self collision (ignore tail tip which moves away, unless growing)
+    const growing = head.x === food.x && head.y === food.y;
+    const body = growing ? snake : snake.slice(0, -1);
+    if (body.some(s => s.x === head.x && s.y === head.y)) return gameOver();
+
+    snake.unshift(head);
+    if (growing){
+      score += 10;
+      scoreEl.textContent = score;
+      speed = Math.min(16, speed + 0.25);
+      placeFood();
+    } else {
+      snake.pop();
+    }
+  }
+
+  function gameOver(){
+    dead = true;
+    running = false;
+    cancelAnimationFrame(rafId);
+    finalScoreEl.textContent = score;
+    const isBest = score > best;
+    if (isBest){
+      best = score;
+      localStorage.setItem(BEST_KEY, String(best));
+      bestEl.textContent = best;
+    }
+    newBestEl.hidden = !isBest;
+    overOverlay.hidden = false;
+    draw();
+  }
+
+  function loop(now){
+    if (!running) return;
+    rafId = requestAnimationFrame(loop);
+    const interval = 1000 / speed;
+    if (now - lastTick >= interval){
+      lastTick = now;
+      step();
+      if (!dead) draw();
+    }
+  }
+
+  function start(){
+    reset();
+    startOverlay.hidden = true;
+    overOverlay.hidden = true;
+    pauseOverlay.hidden = true;
+    running = true;
+    draw();
+    cancelAnimationFrame(rafId);
+    rafId = requestAnimationFrame(loop);
+  }
+
+  function togglePause(){
+    if (dead) return;
+    if (!paused && !running) return; // no active game (start screen / game over)
+    paused = !paused;
+    pauseOverlay.hidden = !paused;
+    if (paused){
+      running = false;
+      cancelAnimationFrame(rafId);
+    } else {
+      running = true;
+      lastTick = performance.now();
+      rafId = requestAnimationFrame(loop);
+    }
+  }
+
+  function setDir(x, y){
+    // no 180° turns
+    if (dir.x === -x && dir.y === -y) return;
+    // also guard against queued double-turn reversing into neck
+    if (nextDir.x === -x && nextDir.y === -y) return;
+    nextDir = {x, y};
+  }
+
+  // --- drawing ---
+  function draw(){
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // subtle grid dots
+    ctx.fillStyle = 'rgba(139,152,176,0.10)';
+    for (let x = 0; x < COLS; x++){
+      for (let y = 0; y < ROWS; y++){
+        ctx.fillRect(x*CELL + CELL/2 - 1, y*CELL + CELL/2 - 1, 2, 2);
+      }
+    }
+
+    // food
+    const fx = food.x*CELL + CELL/2, fy = food.y*CELL + CELL/2;
+    const fr = CELL*0.32;
+    const pulse = 1 + Math.sin(performance.now()/280)*0.08;
+    ctx.beginPath();
+    ctx.arc(fx, fy, fr*pulse, 0, Math.PI*2);
+    ctx.fillStyle = '#fb7185';
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(fx - fr*0.3, fy - fr*0.3, fr*0.28, 0, Math.PI*2);
+    ctx.fillStyle = 'rgba(255,255,255,0.35)';
+    ctx.fill();
+
+    // snake body (rounded path through segment centers)
+    const pts = snake.map(s => ({ x: s.x*CELL + CELL/2, y: s.y*CELL + CELL/2 }));
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.beginPath();
+    ctx.moveTo(pts[0].x, pts[0].y);
+    for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
+    ctx.strokeStyle = '#22c55e';
+    ctx.lineWidth = CELL*0.72;
+    ctx.stroke();
+
+    // head
+    const h = pts[0];
+    ctx.beginPath();
+    ctx.arc(h.x, h.y, CELL*0.46, 0, Math.PI*2);
+    ctx.fillStyle = '#4ade80';
+    ctx.fill();
+
+    // eyes (offset perpendicular to direction)
+    const ex = dir.x, ey = dir.y;
+    const px = -ey, py = ex; // perpendicular
+    const eo = CELL*0.20, fo = CELL*0.14;
+    ctx.fillStyle = '#0b1220';
+    for (const s of [-1, 1]){
+      ctx.beginPath();
+      ctx.arc(h.x + ex*fo + px*eo*s, h.y + ey*fo + py*eo*s, CELL*0.10, 0, Math.PI*2);
+      ctx.fill();
+    }
+  }
+
+  // --- input: keyboard ---
+  const KEYS = {
+    ArrowUp:['up',0,-1], KeyW:['up',0,-1],
+    ArrowDown:['down',0,1], KeyS:['down',0,1],
+    ArrowLeft:['left',-1,0], KeyA:['left',-1,0],
+    ArrowRight:['right',1,0], KeyD:['right',1,0],
+  };
+  document.addEventListener('keydown', (e) => {
+    if (e.code === 'Space'){
+      e.preventDefault();
+      if (!startOverlay.hidden || !overOverlay.hidden) start();
+      else togglePause();
+      return;
+    }
+    const k = KEYS[e.code];
+    if (k){
+      e.preventDefault();
+      if (!running && !dead && startOverlay.hidden && overOverlay.hidden) togglePause();
+      else if (!running && !dead) start();
+      setDir(k[1], k[2]);
+    }
+  });
+
+  // --- input: swipe ---
+  let touchStart = null;
+  canvas.addEventListener('touchstart', (e) => {
+    const t = e.touches[0];
+    touchStart = { x: t.clientX, y: t.clientY };
+  }, { passive:true });
+  canvas.addEventListener('touchmove', (e) => {
+    e.preventDefault();
+    if (!touchStart) return;
+    const t = e.touches[0];
+    const dx = t.clientX - touchStart.x, dy = t.clientY - touchStart.y;
+    if (Math.abs(dx) < 18 && Math.abs(dy) < 18) return;
+    if (!running && !dead) start(); // first swipe starts the game
+    if (Math.abs(dx) > Math.abs(dy)) setDir(dx > 0 ? 1 : -1, 0);
+    else setDir(0, dy > 0 ? 1 : -1);
+    touchStart = { x: t.clientX, y: t.clientY };
+  }, { passive:false });
+  canvas.addEventListener('touchend', () => { touchStart = null; });
+
+  // tap board to pause/resume during play
+  canvas.addEventListener('click', () => {
+    if (running && !dead && startOverlay.hidden && overOverlay.hidden) togglePause();
+  });
+
+  document.getElementById('startBtn').addEventListener('click', start);
+  document.getElementById('againBtn').addEventListener('click', start);
+  document.getElementById('resumeBtn').addEventListener('click', togglePause);
+
+  // auto-pause when tab hidden
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden && running && !dead) togglePause();
+  });
+
+  // PWA: service worker
+  if ('serviceWorker' in navigator){
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('sw.js').catch(() => {});
+    });
+  }
+
+  reset();
+  draw();
+})();
+</script>
+</body>
+</html>
